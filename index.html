@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hipótese Consultoria | IA & Inteligência Estratégica</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#07090e',
+                            card: '#0e131f',
+                            accent: '#00f2fe',
+                            purple: '#4facfe',
+                            border: '#1e293b'
+                        }
+                    },
+                    animation: {
+                        'pulse-glow': 'pulseGlow 3s infinite alternate',
+                    },
+                    keyframes: {
+                        pulseGlow: {
+                            '0%': { boxShadow: '0 0 15px rgba(0, 242, 254, 0.15)' },
+                            '100%': { boxShadow: '0 0 30px rgba(0, 242, 254, 0.35)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Scrollbar */
+        #chat-messages::-webkit-scrollbar { width: 5px; }
+        #chat-messages::-webkit-scrollbar-track { background: rgba(14, 19, 31, 0.5); }
+        #chat-messages::-webkit-scrollbar-thumb { background: rgba(0, 242, 254, 0.2); border-radius: 10px; }
+        #chat-messages::-webkit-scrollbar-thumb:hover { background: rgba(0, 242, 254, 0.5); }
+    </style>
+</head>
+<body class="bg-cyber-bg text-slate-100 min-h-screen font-sans overflow-x-hidden flex flex-col justify-between relative selection:bg-cyan-500 selection:text-black">
+
+    <!-- Background Animado (Partículas com Canvas) -->
+    <canvas id="bg-canvas" class="fixed inset-0 pointer-events-none z-0"></canvas>
+
+    <!-- Header / Navbar -->
+    <header class="relative z-10 w-full max-w-6xl mx-auto px-6 py-5 flex justify-between items-center border-b border-slate-800/60 backdrop-blur-xl bg-cyber-bg/40">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                <i data-lucide="cpu" class="w-5 h-5 text-white"></i>
+            </div>
+            <div>
+                <span class="text-xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-cyan-400">HIPÓTESE</span>
+                <span class="text-[10px] tracking-[0.2em] text-cyan-400 block -mt-1 font-semibold uppercase">Consultoria</span>
+            </div>
+        </div>
+        
+        <button onclick="openBookingModal()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-sm transition-all duration-300 shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:scale-[1.02] flex items-center gap-2">
+            <i data-lucide="calendar" class="w-4 h-4"></i>
+            Agendar Sessão
+        </button>
+    </header>
+
+    <!-- Main Container / Chat Interface -->
+    <main class="relative z-10 flex-1 flex flex-col items-center justify-center p-4 md:p-6 w-full max-w-4xl mx-auto">
+        
+        <div class="w-full bg-cyber-card/70 backdrop-blur-2xl border border-slate-800/80 rounded-3xl shadow-2xl animate-pulse-glow overflow-hidden flex flex-col h-[75vh] max-h-[700px]">
+            
+            <!-- Chat Header -->
+            <div class="px-6 py-4 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="relative">
+                        <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+                            <i data-lucide="bot" class="w-4 h-4 text-cyan-400"></i>
+                        </div>
+                        <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-cyber-card"></span>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-semibold text-slate-200">Assistente Hipótese AI</h2>
+                        <p class="text-xs text-slate-400">Powered by Gemini & n8n</p>
+                    </div>
+                </div>
+                <button onclick="openBookingModal()" class="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 border border-cyan-500/20 hover:border-cyan-500/50 px-3 py-1.5 rounded-lg transition-all">
+                    <span>Ir para Agendamento</span>
+                    <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                </button>
+            </div>
+
+            <!-- Chat Messages Area -->
+            <div id="chat-messages" class="flex-1 p-6 overflow-y-auto space-y-4">
+                <!-- Mensagem Inicial -->
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 mt-1">
+                        <i data-lucide="bot" class="w-4 h-4 text-cyan-400"></i>
+                    </div>
+                    <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl rounded-tl-none max-w-[85%] text-slate-300 text-sm leading-relaxed shadow-sm">
+                        Olá! Seja bem-vindo à **Hipótese Consultoria**. Como posso ajudar sua empresa a escalar com nossas inteligências estratégicas hoje?
+                        <br><br>
+                        Se já quiser garantir seu horário, basta clicar no botão de agendamento no topo!
+                    </div>
+                </div>
+            </div>
+
+            <!-- Typing Indicator (Oculto por padrão) -->
+            <div id="typing-indicator" class="hidden px-6 py-2 flex items-center gap-2 text-xs text-slate-400">
+                <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin text-cyan-400"></i>
+                <span>Gemini está digitando...</span>
+            </div>
+
+            <!-- Chat Input Bar -->
+            <form id="chat-form" onsubmit="sendMessage(event)" class="p-4 border-t border-slate-800/80 bg-slate-950/40 flex items-center gap-3">
+                <input 
+                    type="text" 
+                    id="chat-input" 
+                    placeholder="Digite sua dúvida sobre nossos serviços..." 
+                    class="flex-1 bg-slate-900/90 border border-slate-800 focus:border-cyan-500 text-slate-200 text-sm rounded-xl px-4 py-3 outline-none transition-all placeholder:text-slate-500"
+                    required
+                >
+                <button type="submit" class="p-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all shadow-md shadow-cyan-500/20">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                </button>
+            </form>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="relative z-10 py-4 text-center text-xs text-slate-500 border-t border-slate-900">
+        © 2026 Hipótese Consultoria. Todos os direitos reservados.
+    </footer>
+
+    <!-- MODAL DE AGENDAMENTO (Nome, WhatsApp, E-mail, Data/Hora) -->
+    <div id="booking-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-cyber-card border border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl relative transform scale-95 transition-transform duration-300" id="modal-content">
+            
+            <button onclick="closeBookingModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                    <i data-lucide="calendar-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-slate-100">Agendar Consultoria</h3>
+                    <p class="text-xs text-slate-400">Preencha para gerar o Pix de confirmação</p>
+                </div>
+            </div>
+
+            <form id="booking-form" onsubmit="submitBooking(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">Nome Completo</label>
+                    <input type="text" id="lead-name" required placeholder="Seu nome" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 outline-none transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">WhatsApp</label>
+                    <input type="tel" id="lead-phone" required placeholder="(11) 99999-9999" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 outline-none transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">E-mail</label>
+                    <input type="email" id="lead-email" required placeholder="seu@email.com" class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 outline-none transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">Data e Horário Desejado</label>
+                    <input type="datetime-local" id="lead-datetime" required class="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 outline-none transition-all">
+                </div>
+
+                <button type="submit" id="btn-submit-booking" class="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-cyan-500/25 flex justify-center items-center gap-2">
+                    <span>Ir para Pagamento Pix</span>
+                    <i data-lucide="qr-code" class="w-4 h-4"></i>
+                </button>
+            </form>
+
+            <!-- Área de Resultado do Pix (Injetada via JS) -->
+            <div id="pix-container" class="hidden mt-4 pt-4 border-t border-slate-800 text-center">
+                <p class="text-xs text-emerald-400 font-semibold mb-2">QR Code Pix Gerado com Sucesso!</p>
+                <div id="pix-qrcode" class="p-2 bg-white rounded-xl inline-block mb-3"></div>
+                <button onclick="copyPixCode()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-xs text-cyan-400 font-semibold rounded-lg border border-cyan-500/30 transition-all flex justify-center items-center gap-2">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    <span>Copiar Código Pix Copia e Cola</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Script de Inicialização e Lógica JS -->
+    <script>
+        // Inicializa ícones Lucide
+        lucide.createIcons();
+
+        // Configuração de Webhooks do n8n
+        const N8N_CHAT_WEBHOOK_URL = 'https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-chat';
+        const N8N_BOOKING_WEBHOOK_URL = 'https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-booking';
+
+        // Identificador único da sessão para manter histórico da conversa no Gemini
+        const sessionId = localStorage.getItem('hipotese_session') || 'sess_' + Math.random().toString(36).substring(2, 11);
+        localStorage.setItem('hipotese_session', sessionId);
+
+        // --- LÓGICA DO CHAT ---
+        async function sendMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // Renderizar mensagem do usuário
+            appendMessage('user', message);
+            input.value = '';
+
+            // Exibir Typing Indicator
+            document.getElementById('typing-indicator').classList.remove('hidden');
+
+            try {
+                const response = await fetch(N8N_CHAT_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, sessionId })
+                });
+
+                const data = await response.json();
+                document.getElementById('typing-indicator').classList.add('hidden');
+
+                // Resposta do Gemini vinda do n8n (espera { output: "resposta" })
+                appendMessage('bot', data.output || 'Obrigado pelo contato! Como posso ajudar na sua consultoria?');
+
+            } catch (err) {
+                document.getElementById('typing-indicator').classList.add('hidden');
+                appendMessage('bot', 'A resposta demorou um pouco, mas estou pronto para te ouvir! Caso deseje, você também pode agendar no botão acima.');
+            }
+        }
+
+        function appendMessage(sender, text) {
+            const chatMessages = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            
+            if (sender === 'user') {
+                div.className = 'flex items-start justify-end gap-3';
+                div.innerHTML = `
+                    <div class="bg-cyan-600/20 border border-cyan-500/30 p-4 rounded-2xl rounded-tr-none max-w-[85%] text-slate-100 text-sm leading-relaxed">
+                        ${escapeHtml(text)}
+                    </div>
+                `;
+            } else {
+                div.className = 'flex items-start gap-3';
+                div.innerHTML = `
+                    <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 mt-1">
+                        <i data-lucide="bot" class="w-4 h-4 text-cyan-400"></i>
+                    </div>
+                    <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl rounded-tl-none max-w-[85%] text-slate-300 text-sm leading-relaxed shadow-sm">
+                        ${escapeHtml(text)}
+                    </div>
+                `;
+            }
+
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            lucide.createIcons();
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // --- LÓGICA DO MODAL DE AGENDAMENTO ---
+        function openBookingModal() {
+            const modal = document.getElementById('booking-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeBookingModal() {
+            const modal = document.getElementById('booking-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        let currentPixCode = '';
+
+        async function submitBooking(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit-booking');
+            btn.disabled = true;
+            btn.innerHTML = `<span>Gerando Pix...</span>`;
+
+            const payload = {
+                name: document.getElementById('lead-name').value,
+                phone: document.getElementById('lead-phone').value,
+                email: document.getElementById('lead-email').value,
+                datetime: document.getElementById('lead-datetime').value,
+                sessionId: sessionId
+            };
+
+            try {
+                const response = await fetch(N8N_BOOKING_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                
+                // Exibe resultado do QR Code / Pix retornado do Mercado Pago via n8n
+                if (data.qrCodeBase64 && data.qrCodeCopyPaste) {
+                    currentPixCode = data.qrCodeCopyPaste;
+                    document.getElementById('pix-qrcode').innerHTML = `<img src="data:image/jpeg;base64,${data.qrCodeBase64}" class="w-36 h-36" />`;
+                    document.getElementById('pix-container').classList.remove('hidden');
+                }
+            } catch (err) {
+                alert('Erro ao conectar com servidor de agendamento. Tente novamente.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<span>Ir para Pagamento Pix</span><i data-lucide="qr-code" class="w-4 h-4"></i>`;
+                lucide.createIcons();
+            }
+        }
+
+        function copyPixCode() {
+            navigator.clipboard.writeText(currentPixCode);
+            alert('Código Pix copiado para a área de transferência!');
+        }
+
+        // --- BACKGROUND ANIMADO (PARTÍCULAS CANVAS) ---
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = (Math.random() - 0.5) * 0.4;
+                this.vy = (Math.random() - 0.5) * 0.4;
+                this.radius = Math.random() * 1.5 + 1;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 242, 254, 0.4)';
+                ctx.fill();
+            }
+        }
+
+        for (let i = 0; i < 50; i++) particles.push(new Particle());
+
+        function animateBg() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, index) => {
+                p.update();
+                p.draw();
+                for (let j = index + 1; j < particles.length; j++) {
+                    const p2 = particles[j];
+                    const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.strokeStyle = `rgba(0, 242, 254, ${1 - dist / 120 * 0.15})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                    }
+                }
+            });
+            requestAnimationFrame(animateBg);
+        }
+        animateBg();
+    </script>
+</body>
+</html>
