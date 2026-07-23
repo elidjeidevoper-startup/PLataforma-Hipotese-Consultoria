@@ -220,7 +220,7 @@
             document.getElementById('typing-indicator').classList.remove('hidden');
 
             try {
-                const response = await fetch(N8N_CHAT_WEBHOOK_URL, {
+                const response = await fetch('https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-booking', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message, sessionId })
@@ -230,7 +230,7 @@
                 document.getElementById('typing-indicator').classList.add('hidden');
 
                 // Resposta do Gemini vinda do n8n (espera { output: "resposta" })
-                appendMessage('bot', data.output || 'Obrigado pelo contato! Como posso ajudar na sua consultoria?');
+                appendMessage('bot', data.message || data.output || 'Obrigado pelo contato! Como posso ajudar na sua consultoria?');
 
             } catch (err) {
                 document.getElementById('typing-indicator').classList.add('hidden');
