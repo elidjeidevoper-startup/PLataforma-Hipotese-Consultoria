@@ -193,206 +193,211 @@
     </div>
 
     <!-- Script de Inicialização e Lógica JS -->
-    <script>
-        // Inicializa ícones Lucide
-        lucide.createIcons();
+<script>
+    // Inicializa ícones Lucide
+    lucide.createIcons();
 
-        // Configuração de Webhooks do n8n
-        const N8N_CHAT_WEBHOOK_URL = 'https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-chat';
-        const N8N_BOOKING_WEBHOOK_URL = 'https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-booking';
+    // Configuração de Webhooks do n8n
+    const N8N_CHAT_WEBHOOK_URL = 'https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-chat';
+    const N8N_BOOKING_WEBHOOK_URL = 'https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-booking';
 
-        // Identificador único da sessão para manter histórico da conversa no Gemini
-        const sessionId = localStorage.getItem('hipotese_session') || 'sess_' + Math.random().toString(36).substring(2, 11);
-        localStorage.setItem('hipotese_session', sessionId);
+    // Identificador único da sessão para manter histórico da conversa no Gemini
+    const sessionId = localStorage.getItem('hipotese_session') || 'sess_' + Math.random().toString(36).substring(2, 11);
+    localStorage.setItem('hipotese_session', sessionId);
 
-        // --- LÓGICA DO CHAT ---
-        async function sendMessage(e) {
-            e.preventDefault();
-            const input = document.getElementById('chat-input');
-            const message = input.value.trim();
-            if (!message) return;
+    // --- LÓGICA DO CHAT ---
+    async function sendMessage(e) {
+        e.preventDefault();
+        const input = document.getElementById('chat-input');
+        const message = input.value.trim();
+        if (!message) return;
 
-            // Renderizar mensagem do usuário
-            appendMessage('user', message);
-            input.value = '';
+        // Renderizar mensagem do usuário
+        appendMessage('user', message);
+        input.value = '';
 
-            // Exibir Typing Indicator
-            document.getElementById('typing-indicator').classList.remove('hidden');
+        // Exibir Typing Indicator
+        document.getElementById('typing-indicator').classList.remove('hidden');
 
-            try {
-                const response = await fetch('https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-booking', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message, sessionId })
-                });
+        try {
+            const response = await fetch(N8N_BOOKING_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, sessionId })
+            });
 
-                const data = await response.json();
-                document.getElementById('typing-indicator').classList.add('hidden');
+            const data = await response.json();
+            document.getElementById('typing-indicator').classList.add('hidden');
 
-                // Resposta do Gemini vinda do n8n (espera { output: "resposta" })
-                appendMessage('bot', data.message || data.output || 'Obrigado pelo contato! Como posso ajudar na sua consultoria?');
+            // Resposta do Gemini vinda do n8n (espera { output: "resposta" })
+            appendMessage('bot', data.message || data.output || 'Obrigado pelo contato! Como posso ajudar na sua consultoria?');
 
-            } catch (err) {
-                document.getElementById('typing-indicator').classList.add('hidden');
-                appendMessage('bot', 'A resposta demorou um pouco, mas estou pronto para te ouvir! Caso deseje, você também pode agendar no botão acima.');
-            }
+        } catch (err) {
+            document.getElementById('typing-indicator').classList.add('hidden');
+            appendMessage('bot', 'A resposta demorou um pouco, mas estou pronto para te ouvir! Caso deseje, você também pode agendar no botão acima.');
+        }
+    }
+
+    function appendMessage(sender, text) {
+        const chatMessages = document.getElementById('chat-messages');
+        const div = document.createElement('div');
+        
+        if (sender === 'user') {
+            div.className = 'flex items-start justify-end gap-3';
+            div.innerHTML = `
+                <div class="bg-cyan-600/20 border border-cyan-500/30 p-4 rounded-2xl rounded-tr-none max-w-[85%] text-slate-100 text-sm leading-relaxed">
+                    ${escapeHtml(text)}
+                </div>
+            `;
+        } else {
+            div.className = 'flex items-start gap-3';
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 mt-1">
+                    <i data-lucide="bot" class="w-4 h-4 text-cyan-400"></i>
+                </div>
+                <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl rounded-tl-none max-w-[85%] text-slate-300 text-sm leading-relaxed shadow-sm">
+                    ${escapeHtml(text)}
+                </div>
+            `;
         }
 
-        function appendMessage(sender, text) {
-            const chatMessages = document.getElementById('chat-messages');
-            const div = document.createElement('div');
-            
-            if (sender === 'user') {
-                div.className = 'flex items-start justify-end gap-3';
-                div.innerHTML = `
-                    <div class="bg-cyan-600/20 border border-cyan-500/30 p-4 rounded-2xl rounded-tr-none max-w-[85%] text-slate-100 text-sm leading-relaxed">
-                        ${escapeHtml(text)}
-                    </div>
-                `;
-            } else {
-                div.className = 'flex items-start gap-3';
-                div.innerHTML = `
-                    <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 mt-1">
-                        <i data-lucide="bot" class="w-4 h-4 text-cyan-400"></i>
-                    </div>
-                    <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl rounded-tl-none max-w-[85%] text-slate-300 text-sm leading-relaxed shadow-sm">
-                        ${escapeHtml(text)}
-                    </div>
-                `;
-            }
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        lucide.createIcons();
+    }
 
-            chatMessages.appendChild(div);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+    function escapeHtml(text) {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // --- LÓGICA DO MODAL DE AGENDAMENTO ---
+    function openBookingModal() {
+        const modal = document.getElementById('booking-modal');
+        const content = document.getElementById('modal-content');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+        }, 10);
+    }
+
+    function closeBookingModal() {
+        const modal = document.getElementById('booking-modal');
+        const content = document.getElementById('modal-content');
+        modal.classList.add('opacity-0');
+        content.classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    }
+
+    let currentPixCode = '';
+
+    async function submitBooking(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btn-submit-booking');
+        btn.disabled = true;
+        btn.innerHTML = `<span>Gerando Pix...</span>`;
+
+        const payload = {
+            name: document.getElementById('lead-name').value,
+            phone: document.getElementById('lead-phone').value,
+            email: document.getElementById('lead-email').value,
+            datetime: document.getElementById('lead-datetime').value,
+            sessionId: sessionId
+        };
+
+        try {
+            const response = await fetch(N8N_BOOKING_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            
+            // 🔴 TRATAMENTO DE HORÁRIO INDISPONÍVEL / ERRO
+            if (data.success === false || (data.message && !data.qrCodeBase64)) {
+                alert(data.message || 'Horário indisponível. Por favor, escolha outro horário.');
+                document.getElementById('pix-container').classList.add('hidden');
+            } 
+            // 🟢 EXIBE O PIX SE HOUVER SUCESSO
+            else if (data.qrCodeBase64 && data.qrCodeCopyPaste) {
+                currentPixCode = data.qrCodeCopyPaste;
+                document.getElementById('pix-qrcode').innerHTML = `<img src="data:image/jpeg;base64,${data.qrCodeBase64}" class="w-36 h-36" />`;
+                document.getElementById('pix-container').classList.remove('hidden');
+            }
+        } catch (err) {
+            alert('Erro ao conectar com servidor de agendamento. Tente novamente.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<span>Ir para Pagamento Pix</span><i data-lucide="qr-code" class="w-4 h-4"></i>`;
             lucide.createIcons();
         }
+    }
 
-        function escapeHtml(text) {
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    function copyPixCode() {
+        navigator.clipboard.writeText(currentPixCode);
+        alert('Código Pix copiado para a área de transferência!');
+    }
+
+    // --- BACKGROUND ANIMADO (PARTÍCULAS CANVAS) ---
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    class Particle {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * 0.4;
+            this.vy = (Math.random() - 0.5) * 0.4;
+            this.radius = Math.random() * 1.5 + 1;
         }
-
-        // --- LÓGICA DO MODAL DE AGENDAMENTO ---
-        function openBookingModal() {
-            const modal = document.getElementById('booking-modal');
-            const content = document.getElementById('modal-content');
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                content.classList.remove('scale-95');
-            }, 10);
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
         }
-
-        function closeBookingModal() {
-            const modal = document.getElementById('booking-modal');
-            const content = document.getElementById('modal-content');
-            modal.classList.add('opacity-0');
-            content.classList.add('scale-95');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 242, 254, 0.4)';
+            ctx.fill();
         }
+    }
 
-        let currentPixCode = '';
+    for (let i = 0; i < 50; i++) particles.push(new Particle());
 
-        async function submitBooking(e) {
-            e.preventDefault();
-            const btn = document.getElementById('btn-submit-booking');
-            btn.disabled = true;
-            btn.innerHTML = `<span>Gerando Pix...</span>`;
-
-            const payload = {
-                name: document.getElementById('lead-name').value,
-                phone: document.getElementById('lead-phone').value,
-                email: document.getElementById('lead-email').value,
-                datetime: document.getElementById('lead-datetime').value,
-                sessionId: sessionId
-            };
-
-            try {
-                const response = await fetch(N8N_BOOKING_WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await response.json();
-                
-                // Exibe resultado do QR Code / Pix retornado do Mercado Pago via n8n
-                if (data.qrCodeBase64 && data.qrCodeCopyPaste) {
-                    currentPixCode = data.qrCodeCopyPaste;
-                    document.getElementById('pix-qrcode').innerHTML = `<img src="data:image/jpeg;base64,${data.qrCodeBase64}" class="w-36 h-36" />`;
-                    document.getElementById('pix-container').classList.remove('hidden');
+    function animateBg() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach((p, index) => {
+            p.update();
+            p.draw();
+            for (let j = index + 1; j < particles.length; j++) {
+                const p2 = particles[j];
+                const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                if (dist < 120) {
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = `rgba(0, 242, 254, ${1 - dist / 120 * 0.15})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
                 }
-            } catch (err) {
-                alert('Erro ao conectar com servidor de agendamento. Tente novamente.');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = `<span>Ir para Pagamento Pix</span><i data-lucide="qr-code" class="w-4 h-4"></i>`;
-                lucide.createIcons();
             }
-        }
-
-        function copyPixCode() {
-            navigator.clipboard.writeText(currentPixCode);
-            alert('Código Pix copiado para a área de transferência!');
-        }
-
-        // --- BACKGROUND ANIMADO (PARTÍCULAS CANVAS) ---
-        const canvas = document.getElementById('bg-canvas');
-        const ctx = canvas.getContext('2d');
-        let particles = [];
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        class Particle {
-            constructor() {
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                this.vx = (Math.random() - 0.5) * 0.4;
-                this.vy = (Math.random() - 0.5) * 0.4;
-                this.radius = Math.random() * 1.5 + 1;
-            }
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
-            }
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(0, 242, 254, 0.4)';
-                ctx.fill();
-            }
-        }
-
-        for (let i = 0; i < 50; i++) particles.push(new Particle());
-
-        function animateBg() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            particles.forEach((p, index) => {
-                p.update();
-                p.draw();
-                for (let j = index + 1; j < particles.length; j++) {
-                    const p2 = particles[j];
-                    const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
-                    if (dist < 120) {
-                        ctx.beginPath();
-                        ctx.moveTo(p.x, p.y);
-                        ctx.lineTo(p2.x, p2.y);
-                        ctx.strokeStyle = `rgba(0, 242, 254, ${1 - dist / 120 * 0.15})`;
-                        ctx.lineWidth = 0.5;
-                        ctx.stroke();
-                    }
-                }
-            });
-            requestAnimationFrame(animateBg);
-        }
-        animateBg();
-    </script>
+        });
+        requestAnimationFrame(animateBg);
+    }
+    animateBg();
+</script>
 </body>
 </html>
