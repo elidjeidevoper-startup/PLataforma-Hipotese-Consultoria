@@ -395,29 +395,68 @@
     }
 }
 
-function startPixPolling(paymentId) {
-    if (pollInterval) clearInterval(pollInterval);
+// Garante a variável global do intervalo
+window.pollInterval = null;
 
-    pollInterval = setInterval(async () => {
+// Exibe o Card Verde Neon de Sucesso e substitui o formulário
+function showPaymentSuccessMessage() {
+    // 1. Interrompe a checagem imediatamente
+    if (window.pollInterval) {
+        clearInterval(window.pollInterval);
+        window.pollInterval = null;
+    }
+
+    // 2. Captura o card principal dentro do modal
+    const modalCard = document.querySelector('#booking-modal .bg-cyber-card') || document.querySelector('#booking-modal > div');
+    
+    if (!modalCard) return;
+
+    // 3. Substitui o formulário e o QR Code pelo Card de Sucesso
+    modalCard.innerHTML = `
+        <div id="modal-success-msg" class="p-8 rounded-2xl bg-emerald-500/10 border border-emerald-500/40 text-center flex flex-col items-center justify-center gap-5 animate-fade-in shadow-2xl shadow-emerald-500/20 my-2">
+            <div class="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
+                <i data-lucide="check-circle-2" class="w-10 h-10"></i>
+            </div>
+            <div>
+                <h3 class="text-xl font-bold text-emerald-400 mb-2">Pagamento Confirmado!</h3>
+                <p class="text-sm text-slate-200 leading-relaxed font-medium">
+                    Seu Pix foi recebido com sucesso e sua sessão está agendada.<br>
+                    <span class="text-emerald-300 font-semibold">Enviamos os detalhes da reunião para o seu e-mail.</span>
+                </p>
+            </div>
+            <button onclick="closeBookingModal()" class="mt-2 px-8 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-sm font-semibold rounded-xl transition-all hover:scale-105 active:scale-95">
+                Fechar
+            </button>
+        </div>
+    `;
+
+    if (window.lucide) lucide.createIcons();
+}
+
+// Inicia a checagem periódica do Pix
+function startPixPolling(paymentId) {
+    if (window.pollInterval) clearInterval(window.pollInterval);
+
+    window.pollInterval = setInterval(async () => {
         try {
             const response = await fetch(`${N8N_CHECK_PIX_URL}?paymentId=${paymentId}`);
             const data = await response.json();
 
             console.log('🔄 Checando status do Pix no n8n:', data);
 
-            // Transforma o status para minúsculo para evitar problemas de case-sensitivity
             const status = String(data.status || data.state || '').toLowerCase();
 
-            // Aceita vários formatos de confirmação de pagamento
             if (
                 status === 'approved' || 
                 status === 'received' || 
                 status === 'confirmed' || 
                 status === 'paid' || 
-                data.paid === true || 
-                data.pago === true
+                data.paid === true
             ) {
                 console.log('🎉 Pix confirmado! Exibindo tela de sucesso.');
+                // Para o polling e exibe o sucesso
+                clearInterval(window.pollInterval);
+                window.pollInterval = null;
                 showPaymentSuccessMessage();
             }
         } catch (err) {
