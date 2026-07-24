@@ -192,8 +192,7 @@
         </div>
     </div>
 
-    <!-- Script de Inicialização e Lógica JS -->
-<script>
+   <script>
     // Inicializa ícones Lucide
     lucide.createIcons();
 
@@ -204,6 +203,18 @@
     // Identificador único da sessão para manter histórico da conversa no Gemini
     const sessionId = localStorage.getItem('hipotese_session') || 'sess_' + Math.random().toString(36).substring(2, 11);
     localStorage.setItem('hipotese_session', sessionId);
+
+    // --- BLOQUEIO DE DATAS PASSADAS NO CALENDÁRIO ---
+    function setMinDatetimeLimit() {
+        const inputDatetime = document.getElementById('lead-datetime');
+        if (inputDatetime) {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            inputDatetime.min = now.toISOString().slice(0, 16);
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', setMinDatetimeLimit);
 
     // --- LÓGICA DO CHAT ---
     async function sendMessage(e) {
@@ -274,6 +285,10 @@
     function openBookingModal() {
         const modal = document.getElementById('booking-modal');
         const content = document.getElementById('modal-content');
+        
+        // Atualiza a data/hora mínima no calendário sempre que abre o modal
+        setMinDatetimeLimit();
+
         modal.classList.remove('hidden');
         setTimeout(() => {
             modal.classList.remove('opacity-0');
@@ -294,61 +309,78 @@
     let currentPixCode = '';
 
     async function submitBooking(e) {
-    e.preventDefault();
-    const btn = document.getElementById('btn-submit-booking');
-    
-    // Remove qualquer mensagem de erro anterior antes de tentar de novo
-    const existingError = document.getElementById('modal-error-msg');
-    if (existingError) existingError.remove();
-
-    btn.disabled = true;
-    btn.innerHTML = `<span>Gerando Pix...</span>`;
-
-    const payload = {
-        name: document.getElementById('lead-name').value,
-        phone: document.getElementById('lead-phone').value,
-        email: document.getElementById('lead-email').value,
-        datetime: document.getElementById('lead-datetime').value,
-        sessionId: sessionId
-    };
-
-    try {
-        const response = await fetch(N8N_BOOKING_WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
+        e.preventDefault();
+        const btn = document.getElementById('btn-submit-booking');
         
-        // 🔴 TRATAMENTO DE HORÁRIO INDISPONÍVEL / ERRO (Exibe banner no modal)
-        if (data.success === false || (data.message && !data.qrCodeBase64)) {
-            document.getElementById('pix-container').classList.add('hidden');
-            
-            // Cria um banner de erro estilizado em vermelho neon
-            const msg = data.message || 'Horário indisponível. Por favor, escolha outro horário.';
+        // Remove qualquer mensagem de erro anterior
+        const existingError = document.getElementById('modal-error-msg');
+        if (existingError) existingError.remove();
+
+        const datetimeValue = document.getElementById('lead-datetime').value;
+        const selectedDate = new Date(datetimeValue);
+        const currentDate = new Date();
+
+        // 🕒 TRAVA NO FRONTEND: Não permite agendar para datas/horários passados
+        if (selectedDate < currentDate) {
             const errDiv = document.createElement('div');
             errDiv.id = 'modal-error-msg';
             errDiv.className = 'mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium animate-pulse';
-            errDiv.innerText = msg;
+            errDiv.innerText = 'Selecione uma data e horário futuros para realizar o agendamento.';
             
-            // Insere a mensagem acima do botão
             btn.parentNode.insertBefore(errDiv, btn);
-        } 
-        // 🟢 EXIBE O PIX SE HOUVER SUCESSO
-        else if (data.qrCodeBase64 && data.qrCodeCopyPaste) {
-            currentPixCode = data.qrCodeCopyPaste;
-            document.getElementById('pix-qrcode').innerHTML = `<img src="data:image/jpeg;base64,${data.qrCodeBase64}" class="w-36 h-36" />`;
-            document.getElementById('pix-container').classList.remove('hidden');
+            return;
         }
-    } catch (err) {
-        alert('Erro ao conectar com servidor de agendamento. Tente novamente.');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<span>Ir para Pagamento Pix</span><i data-lucide="qr-code" class="w-4 h-4"></i>`;
-        lucide.createIcons();
+
+        btn.disabled = true;
+        btn.innerHTML = `<span>Gerando Pix...</span>`;
+
+        const payload = {
+            name: document.getElementById('lead-name').value,
+            phone: document.getElementById('lead-phone').value,
+            email: document.getElementById('lead-email').value,
+            datetime: datetimeValue,
+            sessionId: sessionId
+        };
+
+        try {
+            const response = await fetch(N8N_BOOKING_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            
+            // 🔴 TRATAMENTO DE HORÁRIO INDISPONÍVEL / ERRO (Banner em vermelho neon)
+            if (data.success === false || (data.message && !data.qrCodeBase64)) {
+                document.getElementById('pix-container').classList.add('hidden');
+                
+                const msg = data.message || 'Horário indisponível. Por favor, escolha outro horário.';
+                const errDiv = document.createElement('div');
+                errDiv.id = 'modal-error-msg';
+                errDiv.className = 'mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium animate-pulse';
+                errDiv.innerText = msg;
+                
+                btn.parentNode.insertBefore(errDiv, btn);
+            } 
+            // 🟢 EXIBE O PIX SE HOUVER SUCESSO
+            else if (data.qrCodeBase64 && data.qrCodeCopyPaste) {
+                currentPixCode = data.qrCodeCopyPaste;
+                document.getElementById('pix-qrcode').innerHTML = `<img src="data:image/jpeg;base64,${data.qrCodeBase64}" class="w-36 h-36" />`;
+                document.getElementById('pix-container').classList.remove('hidden');
+            }
+        } catch (err) {
+            const errDiv = document.createElement('div');
+            errDiv.id = 'modal-error-msg';
+            errDiv.className = 'mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium animate-pulse';
+            errDiv.innerText = 'Erro ao conectar com servidor de agendamento. Tente novamente.';
+            btn.parentNode.insertBefore(errDiv, btn);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<span>Ir para Pagamento Pix</span><i data-lucide="qr-code" class="w-4 h-4"></i>`;
+            lucide.createIcons();
+        }
     }
-}
 
     function copyPixCode() {
         navigator.clipboard.writeText(currentPixCode);
