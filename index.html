@@ -207,15 +207,39 @@
 
     let pollInterval = null; // Guardará o temporizador da checagem do Pix
 
-    // --- BLOQUEIO DE DATAS PASSADAS NO CALENDÁRIO ---
-    function setMinDatetimeLimit() {
-        const inputDatetime = document.getElementById('lead-datetime');
-        if (inputDatetime) {
-            const now = new Date();
-            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-            inputDatetime.min = now.toISOString().slice(0, 16);
+    // --- BLOQUEIO DE DATAS PASSADAS E DIAS/HORÁRIOS INDISPONÍVEIS ---
+function setMinDatetimeLimit() {
+    const inputDatetime = document.getElementById('lead-datetime');
+    if (!inputDatetime) return;
+
+    // 1. Impede seleção de datas passadas
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    inputDatetime.min = now.toISOString().slice(0, 16);
+
+    // 2. Valida dia da semana e horário assim que o usuário escolhe
+    inputDatetime.addEventListener('change', function () {
+        if (!this.value) return;
+
+        const selectedDate = new Date(this.value);
+        const dayOfWeek = selectedDate.getDay(); // 0 = Domingo, 6 = Sábado
+        const hours = selectedDate.getHours();
+
+        // Bloqueia Fim de Semana (Sábado e Domingo)
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            alert('⚠️ Atendemos apenas de Segunda a Sexta-feira. Por favor, escolha um dia útil.');
+            this.value = '';
+            return;
         }
-    }
+
+        // Bloqueia fora do horário comercial (09:00 às 21:00)
+        if (hours < 9 || hours >= 21) {
+            alert('⚠️ Nosso horário de atendimento é das 09:00 às 21:00. Por favor, escolha um horário dentro desse intervalo.');
+            this.value = '';
+            return;
+        }
+    });
+}
 
     window.addEventListener('DOMContentLoaded', setMinDatetimeLimit);
 
