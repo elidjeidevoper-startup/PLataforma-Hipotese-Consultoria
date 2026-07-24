@@ -199,10 +199,13 @@
     // Configuração de Webhooks do n8n
     const N8N_CHAT_WEBHOOK_URL = 'https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-chat';
     const N8N_BOOKING_WEBHOOK_URL = 'https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-booking';
+    const N8N_CHECK_PIX_URL = 'https://hipotese-consultoria.app.n8n.cloud/webhook/hipotese-check-pix'; // Webhook para checar status
 
     // Identificador único da sessão para manter histórico da conversa no Gemini
     const sessionId = localStorage.getItem('hipotese_session') || 'sess_' + Math.random().toString(36).substring(2, 11);
     localStorage.setItem('hipotese_session', sessionId);
+
+    let pollInterval = null; // Guardará o temporizador da checagem do Pix
 
     // --- BLOQUEIO DE DATAS PASSADAS NO CALENDÁRIO ---
     function setMinDatetimeLimit() {
@@ -223,11 +226,9 @@
         const message = input.value.trim();
         if (!message) return;
 
-        // Renderizar mensagem do usuário
         appendMessage('user', message);
         input.value = '';
 
-        // Exibir Typing Indicator
         document.getElementById('typing-indicator').classList.remove('hidden');
 
         try {
@@ -240,7 +241,6 @@
             const data = await response.json();
             document.getElementById('typing-indicator').classList.add('hidden');
 
-            // Resposta do Gemini vinda do n8n (espera { output: "resposta" })
             appendMessage('bot', data.message || data.output || 'Obrigado pelo contato! Como posso ajudar na sua consultoria?');
 
         } catch (err) {
@@ -286,7 +286,6 @@
         const modal = document.getElementById('booking-modal');
         const content = document.getElementById('modal-content');
         
-        // Atualiza a data/hora mínima no calendário sempre que abre o modal
         setMinDatetimeLimit();
 
         modal.classList.remove('hidden');
@@ -299,6 +298,10 @@
     function closeBookingModal() {
         const modal = document.getElementById('booking-modal');
         const content = document.getElementById('modal-content');
+        
+        // Cancela a verificação do Pix se fechar o modal
+        if (pollInterval) clearInterval(pollInterval);
+
         modal.classList.add('opacity-0');
         content.classList.add('scale-95');
         setTimeout(() => {
@@ -312,22 +315,19 @@
         e.preventDefault();
         const btn = document.getElementById('btn-submit-booking');
         
-        // Remove qualquer mensagem de erro anterior
+        // Limpa mensagens anteriores
         const existingError = document.getElementById('modal-error-msg');
         if (existingError) existingError.remove();
+        const existingSuccess = document.getElementById('modal-success-msg');
+        if (existingSuccess) existingSuccess.remove();
 
         const datetimeValue = document.getElementById('lead-datetime').value;
         const selectedDate = new Date(datetimeValue);
         const currentDate = new Date();
 
-        // 🕒 TRAVA NO FRONTEND: Não permite agendar para datas/horários passados
+        // 🕒 Trava de data passada
         if (selectedDate < currentDate) {
-            const errDiv = document.createElement('div');
-            errDiv.id = 'modal-error-msg';
-            errDiv.className = 'mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium animate-pulse';
-            errDiv.innerText = 'Selecione uma data e horário futuros para realizar o agendamento.';
-            
-            btn.parentNode.insertBefore(errDiv, btn);
+            showModalError('Selecione uma data e horário futuros para realizar o agendamento.');
             return;
         }
 
@@ -351,35 +351,88 @@
 
             const data = await response.json();
             
-            // 🔴 TRATAMENTO DE HORÁRIO INDISPONÍVEL / ERRO (Banner em vermelho neon)
+            // 🔴 Tratamento de Erro / Horário Ocupado
             if (data.success === false || (data.message && !data.qrCodeBase64)) {
                 document.getElementById('pix-container').classList.add('hidden');
-                
-                const msg = data.message || 'Horário indisponível. Por favor, escolha outro horário.';
-                const errDiv = document.createElement('div');
-                errDiv.id = 'modal-error-msg';
-                errDiv.className = 'mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium animate-pulse';
-                errDiv.innerText = msg;
-                
-                btn.parentNode.insertBefore(errDiv, btn);
+                showModalError(data.message || 'Horário indisponível. Por favor, escolha outro horário.');
             } 
-            // 🟢 EXIBE O PIX SE HOUVER SUCESSO
+            // 🟢 Sucesso ao Gerar Pix
             else if (data.qrCodeBase64 && data.qrCodeCopyPaste) {
                 currentPixCode = data.qrCodeCopyPaste;
-                document.getElementById('pix-qrcode').innerHTML = `<img src="data:image/jpeg;base64,${data.qrCodeBase64}" class="w-36 h-36" />`;
+                document.getElementById('pix-qrcode').innerHTML = `<img src="data:image/jpeg;base64,${data.qrCodeBase64}" class="w-36 h-36 rounded-lg" />`;
                 document.getElementById('pix-container').classList.remove('hidden');
+
+                // Se o n8n retornar o ID do pagamento, inicia a checagem automática
+                const paymentId = data.paymentId || data.id;
+                if (paymentId) {
+                    startPixPolling(paymentId);
+                }
             }
         } catch (err) {
-            const errDiv = document.createElement('div');
-            errDiv.id = 'modal-error-msg';
-            errDiv.className = 'mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium animate-pulse';
-            errDiv.innerText = 'Erro ao conectar com servidor de agendamento. Tente novamente.';
-            btn.parentNode.insertBefore(errDiv, btn);
+            showModalError('Erro ao conectar com servidor de agendamento. Tente novamente.');
         } finally {
             btn.disabled = false;
             btn.innerHTML = `<span>Ir para Pagamento Pix</span><i data-lucide="qr-code" class="w-4 h-4"></i>`;
             lucide.createIcons();
         }
+    }
+
+    // --- FUNÇÕES DE AUXÍLIO PARA STATUS DO PIX ---
+    function showModalError(message) {
+        const btn = document.getElementById('btn-submit-booking');
+        const errDiv = document.createElement('div');
+        errDiv.id = 'modal-error-msg';
+        errDiv.className = 'mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium animate-pulse';
+        errDiv.innerText = message;
+        btn.parentNode.insertBefore(errDiv, btn);
+    }
+
+    // Exibe o Card de Sucesso após confirmação de pagamento
+    function showPaymentSuccessMessage() {
+        if (pollInterval) clearInterval(pollInterval);
+
+        // Oculta área do QR Code e o botão de gerar Pix
+        const pixContainer = document.getElementById('pix-container');
+        const btn = document.getElementById('btn-submit-booking');
+        if (pixContainer) pixContainer.classList.add('hidden');
+        if (btn) btn.classList.add('hidden');
+
+        // Cria o card de confirmação com visual Neon Emerald
+        const successDiv = document.createElement('div');
+        successDiv.id = 'modal-success-msg';
+        successDiv.className = 'p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/40 text-center flex flex-col items-center gap-3 animate-fade-in shadow-lg shadow-emerald-500/10';
+        successDiv.innerHTML = `
+            <div class="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
+                <i data-lucide="check-circle-2" class="w-7 h-7"></i>
+            </div>
+            <h3 class="text-base font-bold text-emerald-400">Pagamento Confirmado!</h3>
+            <p class="text-xs text-slate-200 leading-relaxed font-medium">
+                Seu pix foi pago com sucesso e sua sessão está agendada.<br>
+                <span class="text-emerald-300 font-semibold">Confira os detalhes no seu e-mail.</span>
+            </p>
+        `;
+
+        const modalContent = document.getElementById('modal-content') || document.querySelector('#booking-modal form');
+        modalContent.appendChild(successDiv);
+        lucide.createIcons();
+    }
+
+    // Checa a cada 4 segundos no n8n se o pagamento mudou para aprovado
+    function startPixPolling(paymentId) {
+        if (pollInterval) clearInterval(pollInterval);
+
+        pollInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`${N8N_CHECK_PIX_URL}?paymentId=${paymentId}`);
+                const data = await response.json();
+
+                if (data.status === 'approved' || data.paid === true) {
+                    showPaymentSuccessMessage();
+                }
+            } catch (err) {
+                console.log('Aguardando confirmação do Pix...');
+            }
+        }, 4000);
     }
 
     function copyPixCode() {
