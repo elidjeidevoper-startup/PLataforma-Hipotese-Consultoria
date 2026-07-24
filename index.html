@@ -311,6 +311,22 @@
 
     let currentPixCode = '';
 
+    function showModalError(message) {
+    const btn = document.getElementById('btn-submit-booking');
+    if (!btn) return;
+    
+    // Remove mensagem de erro antiga se houver
+    const existingError = document.getElementById('modal-error-msg');
+    if (existingError) existingError.remove();
+
+    const errDiv = document.createElement('div');
+    errDiv.id = 'modal-error-msg';
+    errDiv.className = 'mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium animate-pulse';
+    errDiv.innerText = message;
+    
+    btn.parentNode.insertBefore(errDiv, btn);
+}
+
     async function submitBooking(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-submit-booking');
