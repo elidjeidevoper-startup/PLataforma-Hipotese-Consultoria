@@ -312,128 +312,103 @@
     let currentPixCode = '';
 
     async function submitBooking(e) {
-        e.preventDefault();
-        const btn = document.getElementById('btn-submit-booking');
+    e.preventDefault();
+    const btn = document.getElementById('btn-submit-booking');
+    
+    // Limpa mensagens anteriores
+    const existingError = document.getElementById('modal-error-msg');
+    if (existingError) existingError.remove();
+
+    const datetimeValue = document.getElementById('lead-datetime').value;
+    const selectedDate = new Date(datetimeValue);
+    const currentDate = new Date();
+
+    if (selectedDate < currentDate) {
+        showModalError('Selecione uma data e horário futuros para realizar o agendamento.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = `<span>Gerando Pix...</span>`;
+
+    const payload = {
+        name: document.getElementById('lead-name').value,
+        phone: document.getElementById('lead-phone').value,
+        email: document.getElementById('lead-email').value,
+        datetime: datetimeValue,
+        sessionId: sessionId
+    };
+
+    try {
+        const response = await fetch(N8N_BOOKING_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
         
-        // Limpa mensagens anteriores
-        const existingError = document.getElementById('modal-error-msg');
-        if (existingError) existingError.remove();
-        const existingSuccess = document.getElementById('modal-success-msg');
-        if (existingSuccess) existingSuccess.remove();
+        // 🔍 DEBUG: Veja no F12 o que o n8n respondeu
+        console.log('📌 Resposta do n8n ao gerar Pix:', data);
+        
+        if (data.success === false || (data.message && !data.qrCodeBase64)) {
+            document.getElementById('pix-container').classList.add('hidden');
+            showModalError(data.message || 'Horário indisponível. Por favor, escolha outro horário.');
+        } 
+        else if (data.qrCodeBase64 && data.qrCodeCopyPaste) {
+            currentPixCode = data.qrCodeCopyPaste;
+            document.getElementById('pix-qrcode').innerHTML = `<img src="data:image/jpeg;base64,${data.qrCodeBase64}" class="w-36 h-36 rounded-lg" />`;
+            document.getElementById('pix-container').classList.remove('hidden');
 
-        const datetimeValue = document.getElementById('lead-datetime').value;
-        const selectedDate = new Date(datetimeValue);
-        const currentDate = new Date();
-
-        // 🕒 Trava de data passada
-        if (selectedDate < currentDate) {
-            showModalError('Selecione uma data e horário futuros para realizar o agendamento.');
-            return;
-        }
-
-        btn.disabled = true;
-        btn.innerHTML = `<span>Gerando Pix...</span>`;
-
-        const payload = {
-            name: document.getElementById('lead-name').value,
-            phone: document.getElementById('lead-phone').value,
-            email: document.getElementById('lead-email').value,
-            datetime: datetimeValue,
-            sessionId: sessionId
-        };
-
-        try {
-            const response = await fetch(N8N_BOOKING_WEBHOOK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json();
+            // Procura o ID em vários nomes possíveis que o n8n ou Mercado Pago/Asaas costumam enviar
+            const paymentId = data.paymentId || data.id || data.pixId || data.id_pagamento;
             
-            // 🔴 Tratamento de Erro / Horário Ocupado
-            if (data.success === false || (data.message && !data.qrCodeBase64)) {
-                document.getElementById('pix-container').classList.add('hidden');
-                showModalError(data.message || 'Horário indisponível. Por favor, escolha outro horário.');
-            } 
-            // 🟢 Sucesso ao Gerar Pix
-            else if (data.qrCodeBase64 && data.qrCodeCopyPaste) {
-                currentPixCode = data.qrCodeCopyPaste;
-                document.getElementById('pix-qrcode').innerHTML = `<img src="data:image/jpeg;base64,${data.qrCodeBase64}" class="w-36 h-36 rounded-lg" />`;
-                document.getElementById('pix-container').classList.remove('hidden');
-
-                // Se o n8n retornar o ID do pagamento, inicia a checagem automática
-                const paymentId = data.paymentId || data.id;
-                if (paymentId) {
-                    startPixPolling(paymentId);
-                }
+            if (paymentId) {
+                console.log('✅ Polling iniciado para o Payment ID:', paymentId);
+                startPixPolling(paymentId);
+            } else {
+                console.warn('⚠️ ATENÇÃO: O n8n gerou o Pix, mas NÃO enviou o "paymentId" no JSON. O polling automático não pôde ser iniciado.');
             }
-        } catch (err) {
-            showModalError('Erro ao conectar com servidor de agendamento. Tente novamente.');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = `<span>Ir para Pagamento Pix</span><i data-lucide="qr-code" class="w-4 h-4"></i>`;
-            lucide.createIcons();
         }
-    }
-
-    // --- FUNÇÕES DE AUXÍLIO PARA STATUS DO PIX ---
-    function showModalError(message) {
-        const btn = document.getElementById('btn-submit-booking');
-        const errDiv = document.createElement('div');
-        errDiv.id = 'modal-error-msg';
-        errDiv.className = 'mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs text-center font-medium animate-pulse';
-        errDiv.innerText = message;
-        btn.parentNode.insertBefore(errDiv, btn);
-    }
-
-    // Exibe o Card de Sucesso após confirmação de pagamento
-    function showPaymentSuccessMessage() {
-        if (pollInterval) clearInterval(pollInterval);
-
-        // Oculta área do QR Code e o botão de gerar Pix
-        const pixContainer = document.getElementById('pix-container');
-        const btn = document.getElementById('btn-submit-booking');
-        if (pixContainer) pixContainer.classList.add('hidden');
-        if (btn) btn.classList.add('hidden');
-
-        // Cria o card de confirmação com visual Neon Emerald
-        const successDiv = document.createElement('div');
-        successDiv.id = 'modal-success-msg';
-        successDiv.className = 'p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/40 text-center flex flex-col items-center gap-3 animate-fade-in shadow-lg shadow-emerald-500/10';
-        successDiv.innerHTML = `
-            <div class="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
-                <i data-lucide="check-circle-2" class="w-7 h-7"></i>
-            </div>
-            <h3 class="text-base font-bold text-emerald-400">Pagamento Confirmado!</h3>
-            <p class="text-xs text-slate-200 leading-relaxed font-medium">
-                Seu pix foi pago com sucesso e sua sessão está agendada.<br>
-                <span class="text-emerald-300 font-semibold">Confira os detalhes no seu e-mail.</span>
-            </p>
-        `;
-
-        const modalContent = document.getElementById('modal-content') || document.querySelector('#booking-modal form');
-        modalContent.appendChild(successDiv);
+    } catch (err) {
+        showModalError('Erro ao conectar com servidor de agendamento. Tente novamente.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span>Ir para Pagamento Pix</span><i data-lucide="qr-code" class="w-4 h-4"></i>`;
         lucide.createIcons();
     }
+}
 
-    // Checa a cada 4 segundos no n8n se o pagamento mudou para aprovado
-    function startPixPolling(paymentId) {
-        if (pollInterval) clearInterval(pollInterval);
+function startPixPolling(paymentId) {
+    if (pollInterval) clearInterval(pollInterval);
 
-        pollInterval = setInterval(async () => {
-            try {
-                const response = await fetch(`${N8N_CHECK_PIX_URL}?paymentId=${paymentId}`);
-                const data = await response.json();
+    pollInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`${N8N_CHECK_PIX_URL}?paymentId=${paymentId}`);
+            const data = await response.json();
 
-                if (data.status === 'approved' || data.paid === true) {
-                    showPaymentSuccessMessage();
-                }
-            } catch (err) {
-                console.log('Aguardando confirmação do Pix...');
+            console.log('🔄 Checando status do Pix no n8n:', data);
+
+            // Transforma o status para minúsculo para evitar problemas de case-sensitivity
+            const status = String(data.status || data.state || '').toLowerCase();
+
+            // Aceita vários formatos de confirmação de pagamento
+            if (
+                status === 'approved' || 
+                status === 'received' || 
+                status === 'confirmed' || 
+                status === 'paid' || 
+                data.paid === true || 
+                data.pago === true
+            ) {
+                console.log('🎉 Pix confirmado! Exibindo tela de sucesso.');
+                showPaymentSuccessMessage();
             }
-        }, 4000);
-    }
+        } catch (err) {
+            console.log('Aguardando confirmação do Pix...');
+        }
+    }, 4000);
+}
 
     function copyPixCode() {
         navigator.clipboard.writeText(currentPixCode);
